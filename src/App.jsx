@@ -36,15 +36,15 @@ import {
   ContactShadows,
   Html,
   Environment,
-  Preload, // OPTIMASI: Preload untuk mencegah blank screen
-  Loader, // OPTIMASI: Loading screen bawaan Drei
+  Preload,
+  Loader,
 } from "@react-three/drei";
 
 // Import Google Gemini AI
 import { GoogleGenerativeAI } from "@google/generative-ai";
 // ---> MASUKKAN API KEY PRIBADI ANDA DI SINI <---
-const genAI = new GoogleGenerativeAI("API_KEY_ANDA");
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const genAI = new GoogleGenerativeAI("-");
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // ==============================================================================
 // 1. KONFIGURASI FIREBASE REALTIME DATABASE
@@ -276,9 +276,7 @@ function InteractiveMascot({ isPasswordFocused, isDarkMode }) {
     if (mascotState === "sleep") return;
     if (isDarkMode) {
       setMascotState("tired");
-      const timer = setTimeout(() => {
-        setMascotState("sleep");
-      }, 2000);
+      const timer = setTimeout(() => setMascotState("sleep"), 2000);
       return () => clearTimeout(timer);
     } else {
       if (mascotState === "tired") setMascotState("idle");
@@ -287,16 +285,12 @@ function InteractiveMascot({ isPasswordFocused, isDarkMode }) {
 
   useEffect(() => {
     if (mascotState === "sleep") return;
-    if (isPasswordFocused) {
-      setMascotState("peeking");
-    } else if (mascotState === "peeking") {
-      setMascotState("idle");
-    }
+    if (isPasswordFocused) setMascotState("peeking");
+    else if (mascotState === "peeking") setMascotState("idle");
   }, [isPasswordFocused, mascotState]);
 
   useEffect(() => {
     if (mascotState === "sleep" || isDarkMode) return;
-
     const handleMouseMove = (e) => {
       if (mascotState === "sleep") return;
       if (mascotState === "tired") setMascotState("idle");
@@ -334,7 +328,6 @@ function InteractiveMascot({ isPasswordFocused, isDarkMode }) {
 
   const handlePoke = () => {
     if (mascotState === "sleep") return;
-
     const newCount = clickCount + 1;
     setClickCount(newCount);
     setShakeKey((prev) => prev + 1);
@@ -416,9 +409,7 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(window.innerWidth > 768);
 
-  // OPTIMASI 3: Transisi React 18 untuk navigasi tab yang lebih halus
   const [isPending, startTransition] = useTransition();
-
   const themeColors = isDarkMode ? darkColors : lightColors;
 
   const [rawProducts, setRawProducts] = useState({});
@@ -729,7 +720,7 @@ export default function App() {
             marginBottom: "10px",
           }}
         >
-          KONEKSI GAGAL
+          GAGAL TERHUBUNG KE DATABASE
         </h1>
         <p>{firebaseError}</p>
       </div>
@@ -785,7 +776,14 @@ export default function App() {
                   marginBottom: "30px",
                 }}
               >
-                <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 900 }}>
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: "22px",
+                    fontWeight: 900,
+                    color: "var(--text-main)",
+                  }}
+                >
                   DAVIS CAFE
                 </h2>
                 <ThemeSwitcher />
@@ -797,11 +795,13 @@ export default function App() {
                   marginBottom: "30px",
                 }}
               >
-                Silakan masuk untuk mengakses dasbor analitik kafe.
+                Selamat datang kembali! Silakan login untuk melanjutkan.
               </p>
               <form onSubmit={handleLogin} className="login-form">
                 <div className="input-group">
-                  <label>Otoritas Akses</label>
+                  <label style={{ color: "var(--text-muted)" }}>
+                    Masuk Sebagai
+                  </label>
                   <select
                     name="roleSelect"
                     required
@@ -813,7 +813,9 @@ export default function App() {
                   </select>
                 </div>
                 <div className="input-group">
-                  <label>Kata Sandi</label>
+                  <label style={{ color: "var(--text-muted)" }}>
+                    Kata Sandi
+                  </label>
                   <input
                     type="password"
                     placeholder="••••••••"
@@ -842,7 +844,7 @@ export default function App() {
                     fontSize: "15px",
                   }}
                 >
-                  Masuk Dashboard
+                  Masuk ke Dasbor
                 </button>
               </form>
             </div>
@@ -902,9 +904,7 @@ export default function App() {
                 color: "var(--text-muted)",
                 fontWeight: "600",
               }}
-            >
-              Ketuk untuk ubah
-            </span>
+            ></span>
           )}
           <span
             style={{
@@ -923,7 +923,7 @@ export default function App() {
         <div className="filter-body-content">
           <div className="control-row">
             <div className="control-group mobile-date-group">
-              <span className="control-label">Periode Data:</span>
+              <span className="control-label">Rentang Waktu:</span>
               <input
                 type="date"
                 value={startDate}
@@ -1026,7 +1026,7 @@ export default function App() {
               style={{ alignItems: "center", width: "100%" }}
             >
               <span className="control-label" style={{ minWidth: "75px" }}>
-                Performa:
+                Urutkan:
               </span>
               <div
                 style={{
@@ -1359,7 +1359,6 @@ export default function App() {
                   sortOrder={sortOrder}
                 />
               </Suspense>
-              {/* Tambahkan Loader Drei di Sini */}
               <Loader
                 dataInterpolation={(p) =>
                   `Memuat Studio 3D... ${p.toFixed(0)}%`
@@ -1379,7 +1378,6 @@ export default function App() {
                   sortOrder={sortOrder}
                 />
               </Suspense>
-              {/* Tambahkan Loader Drei di Sini */}
               <Loader
                 dataInterpolation={(p) =>
                   `Memuat Studio 3D... ${p.toFixed(0)}%`
@@ -1486,7 +1484,7 @@ function DashboardOverview({ data, colors, setTab, sortOrder }) {
           </span>
         </div>
         <div className="kpi-card" style={{ borderLeftColor: colors.red }}>
-          <span className="kpi-label">TOTAL WASTE (RUGI)</span>
+          <span className="kpi-label">TERBUANG (WASTE)</span>
           <span className="kpi-value" style={{ color: colors.red }}>
             {formatNilai(totalWaste)} Unit
           </span>
@@ -1882,7 +1880,7 @@ function DataTableView({ data, colors, playUISound }) {
                   onMouseEnter={(e) => (e.target.style.opacity = 0.7)}
                   onMouseLeave={(e) => (e.target.style.opacity = 1)}
                 >
-                  Waste (Rugi){" "}
+                  Terbuang (Waste){" "}
                   {sortConfig.key === "waste" && (
                     <SortIcon direction={sortConfig.direction} />
                   )}
@@ -1910,9 +1908,13 @@ function DataTableView({ data, colors, playUISound }) {
                 <tr>
                   <td
                     colSpan="7"
-                    style={{ textAlign: "center", padding: "30px" }}
+                    style={{
+                      textAlign: "center",
+                      padding: "30px",
+                      color: "var(--text-muted)",
+                    }}
                   >
-                    Tidak ada data.
+                    Tidak ada data yang sesuai.
                   </td>
                 </tr>
               ) : (
@@ -2009,68 +2011,142 @@ function FloatingAIChatAssistant({
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [showPride, setShowPride] = useState(false);
   const messagesEndRef = useRef(null);
+
+  const [eyeOffset, setEyeOffset] = useState({ x: 0, y: 0 });
+  const toggleBtnRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setEyeOffset({ x: 0, y: 0 });
+      return;
+    }
+
+    const handleMouseMove = (e) => {
+      if (toggleBtnRef.current) {
+        const rect = toggleBtnRef.current.getBoundingClientRect();
+        const eyeCenterX = rect.left + rect.width / 2;
+        const eyeCenterY = rect.top + rect.height / 2;
+        const angle = Math.atan2(
+          e.clientY - eyeCenterY,
+          e.clientX - eyeCenterX,
+        );
+        const distance = 4;
+        setEyeOffset({
+          x: Math.cos(angle) * distance,
+          y: Math.sin(angle) * distance,
+        });
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, [isOpen]);
 
   const askRealGemini = async (userQuery) => {
     try {
       if (!data || data.length === 0)
         return "Data saat ini kosong untuk filter yang dipilih.";
 
+      // 1. Hitung Agregat Dasar (Untuk referensi jika ditanya)
       const totalRev = data.reduce((sum, d) => sum + d.revenue, 0);
       const totalSold = data.reduce((sum, d) => sum + d.sold, 0);
       const totalWaste = data.reduce((sum, d) => sum + d.waste, 0);
 
+      // 2. Siapkan wadah data untuk masing-masing visualisasi
       const productMap = {};
+      const catData = {};
+      const dailyData = {};
+
       data.forEach((d) => {
         productMap[d.productName] =
           (productMap[d.productName] || 0) + d.revenue;
+        catData[d.category] = (catData[d.category] || 0) + d.revenue;
+        dailyData[d.formattedDate] =
+          (dailyData[d.formattedDate] || 0) + d.revenue;
       });
-      const topProducts = Object.keys(productMap)
-        .sort((a, b) => productMap[b] - productMap[a])
-        .slice(0, 3)
+
+      // Format data menjadi string agar mudah dibaca AI
+      const topProducts = Object.entries(productMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([n, r]) => `${n} ($${r.toFixed(0)})`)
         .join(", ");
 
+      const catTrend = Object.entries(catData)
+        .sort((a, b) => b[1] - a[1])
+        .map(([c, r]) => `${c} ($${r.toFixed(0)})`)
+        .join(", ");
+
+      const dailyTrend = Object.entries(dailyData)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, rev]) => `${date}: $${rev.toFixed(0)}`)
+        .join(" | ");
+
+      // 3. LOGIKA KONTEKS DINAMIS BERDASARKAN TAB YANG DIBUKA
       let tabName = "Dasbor";
-      if (activeTab === "overview")
+      let visualData = "";
+      let focusInstruction = "";
+
+      if (activeTab === "overview") {
         tabName = "Ringkasan Dasbor (Grafik Garis & KPI)";
-      if (activeTab === "table") tabName = "Tabel Transaksi Mentah";
-      if (activeTab === "3d-bar") tabName = "Studio 3D: Bar Chart Top Produk";
-      if (activeTab === "3d-pie") tabName = "Studio 3D: Pie Chart Kategori";
+        visualData = `
+          - KPI: Pendapatan $${totalRev.toLocaleString("en-US")}, Terjual ${totalSold} item, Waste ${totalWaste} item.
+          - Tren Harian (Line Chart): [${dailyTrend}]
+          - Porsi Kategori (Pie Chart): [${catTrend}]
+        `;
+        focusInstruction =
+          "Fokus analisis pada tren pendapatan harian dan performa KPI secara umum.";
+      } else if (activeTab === "table") {
+        tabName = "Tabel Transaksi Mentah";
+        visualData = `- Ringkasan Total: Pendapatan $${totalRev.toLocaleString("en-US")}, Terjual ${totalSold} item, Waste ${totalWaste} item.`;
+        focusInstruction =
+          "Berikan insight ringkas dari keseluruhan data mentah yang difilter.";
+      } else if (activeTab === "3d-bar") {
+        tabName = "Studio 3D: Bar Chart Produk";
+        visualData = `- Data Bar Chart (Produk): [${topProducts}]`;
+        focusInstruction =
+          "Fokus analisismu HANYA pada perbandingan performa antar produk di Bar Chart. JANGAN bahas tren harian atau KPI total kecuali ditanya langsung.";
+      } else if (activeTab === "3d-pie") {
+        tabName = "Studio 3D: Pie Chart Kategori";
+        visualData = `- Data Pie Chart (Kategori): [${catTrend}]`;
+        focusInstruction =
+          "Fokus analisismu HANYA pada distribusi atau porsi pendapatan antar kategori di Pie Chart. JANGAN bahas tren harian, produk spesifik, atau total waste kecuali ditanya langsung.";
+      }
 
       const filterKategori =
         categoryFilter === "ALL" ? "Semua Kategori" : categoryFilter;
       const filterTanggal =
-        startDate && endDate ? `${startDate} sampai ${endDate}` : "Semua Waktu";
+        startDate && endDate ? `${startDate} s.d ${endDate}` : "Semua Waktu";
 
+      // 4. PROMPT FINAL YANG DIKIRIM KE GEMINI
       const promptContext = `
-        Kamu adalah Davis AI, asisten analis data yang interaktif, ramah, dan proaktif untuk Davis Cafe.
-        Gunakan gaya bahasa Indonesia yang kasual-profesional (gunakan kata "Anda" dan "Saya").
-
-        KONTEKS LAYAR PENGGUNA SAAT INI:
-        - Sedang melihat halaman: **${tabName}**
-        - Filter Data Aktif: Kategori **${filterKategori}**, Tanggal: **${filterTanggal}**
-
-        RINGKASAN DATA (Berdasarkan filter aktif):
-        - Total Pendapatan: $${totalRev.toLocaleString("en-US")}
-        - Total Barang Terjual: ${totalSold} item
-        - Total Waste (Rugi/Terbuang): ${totalWaste} item
-        - Top 3 Produk: ${topProducts}
+        Kamu adalah Davis AI, asisten analis data senior di Davis Cafe.
         
-        PERTANYAAN PENGGUNA:
+        KONTEKS LAYAR PENGGUNA SAAT INI:
+        - Halaman: ${tabName}
+        - Filter Aktif: Kategori: ${filterKategori}, Periode: ${filterTanggal}
+        
+        DATA VISUAL YANG SEDANG DILIHAT PENGGUNA SAAT INI:
+        ${visualData}
+        
+        PENGGUNA BERTANYA:
         "${userQuery}"
         
-        PANDUAN MENJAWAB (SANGAT PENTING):
-        1. Jika pengguna hanya menyapa (halo, hai, tes, p), JANGAN merangkum seluruh data! Balas saja sapaannya dengan ramah, sebutkan halaman apa yang sedang ia lihat (${tabName}), dan tawarkan bantuan analisis.
-        2. Jika pengguna meminta analisis/tanya data, berikan insight yang nyambung dengan filter/layar yang sedang ia lihat.
-        3. Hindari memuntahkan angka mentah secara kaku. Buat menjadi narasi (contoh: "Wah, pendapatan kita dari ${filterKategori} mencapai...").
-        4. Gunakan emoji secukupnya agar tidak kaku.
+        ATURAN MENJAWAB (HARGA MATI):
+        1. SESUAIKAN DENGAN KONTEKS LAYAR: ${focusInstruction}
+        2. JANGAN MEMBACA DATA GAIB: Jangan sebutkan metrik (seperti total waste, atau tren harian) jika pengguna sedang di tab yang tidak menampilkan data tersebut (misal tab 3D Pie), KECUALI pengguna secara eksplisit menanyakannya di dalam prompt mereka.
+        3. BERTINGKAH SEOLAH MELIHAT GRAFIK: Gunakan data 'Visual' di atas untuk mendeskripsikan secara alami potongan pie terbesar, atau barisan produk tertinggi. Jangan pernah berkata "Saya tidak bisa melihat grafik secara visual".
+        4. JANGAN MEMBEO FILTER: Jangan memulai kalimat dengan merangkum filter ("Anda sedang melihat tanggal X dengan filter Y") karena itu terdengar seperti robot. Langsung to the point ke insight.
+        5. Gunakan bahasa Indonesia kasual-profesional (Gunakan sapaan "Saya" dan "Anda").
       `;
 
       const result = await model.generateContent(promptContext);
       return result.response.text();
     } catch (error) {
       console.error("Gemini API Error:", error);
-      return "Waduh, sepertinya saya kesulitan menghubungi server Google. Coba lagi dalam beberapa detik ya!";
+      return "Otak AI saya sedang sibuk memproses hal lain. Coba tanyakan lagi dalam beberapa detik ya!";
     }
   };
 
@@ -2088,11 +2164,25 @@ function FloatingAIChatAssistant({
     playUISound("alert");
     setMessages((prev) => [...prev, { sender: "ai", text: reply }]);
     setIsTyping(false);
+
+    setShowPride(true);
+    setTimeout(() => setShowPride(false), 1000);
   };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  let currentMascotImage = "/mascot-body.png";
+  if (!isOpen) {
+    currentMascotImage = isHovered ? "/mascot-excite.png" : "/mascot-body.png";
+  } else {
+    if (isTyping) currentMascotImage = "/mascot-search.png";
+    else if (showPride) currentMascotImage = "/mascot-pride.png";
+    else if (input.trim().length > 0)
+      currentMascotImage = "/mascot-curious.png";
+    else currentMascotImage = "/mascot-proud.png";
+  }
 
   return (
     <div className="floating-chat-container">
@@ -2146,7 +2236,7 @@ function FloatingAIChatAssistant({
             <input
               type="text"
               className="chat-input"
-              placeholder="Tanya insight data..."
+              placeholder="Ketik pertanyaan tentang data..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isTyping}
@@ -2159,6 +2249,7 @@ function FloatingAIChatAssistant({
       )}
 
       <button
+        ref={toggleBtnRef}
         className={`chat-toggle-btn ${isOpen ? "is-open" : ""}`}
         onClick={toggleChat}
         onMouseEnter={() => {
@@ -2167,19 +2258,52 @@ function FloatingAIChatAssistant({
         }}
         onMouseLeave={() => setIsHovered(false)}
         style={{
-          backgroundImage: isOpen
-            ? "none"
-            : `url(${isHovered ? "/mascot-excite.png" : "/mascot-body.png"})`,
-          backgroundColor: isOpen ? "var(--primary)" : "transparent",
-          width: isOpen ? "75px" : "100px",
-          height: isOpen ? "75px" : "100px",
-          backgroundSize: "contain",
-          backgroundRepeat: "no-repeat",
+          backgroundColor: "transparent",
+          width: isOpen ? "85px" : "100px",
+          height: isOpen ? "85px" : "100px",
           border: "none",
-          backgroundPosition: "center center",
+          position: "relative",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          overflow: "visible",
+          transition: "width 0.3s ease, height 0.3s ease",
+          cursor: "pointer",
         }}
       >
-        {isOpen ? "✕" : ""}
+        <img
+          src={currentMascotImage}
+          alt="Mascot State"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            transition: "all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+            filter: isOpen
+              ? "drop-shadow(0 10px 15px rgba(0,0,0,0.15))"
+              : "none",
+          }}
+        />
+        {!isOpen && !isHovered && (
+          <img
+            src="/mascot-eyes.png"
+            alt="Mascot Eyes"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)`,
+              pointerEvents: "none",
+              transition: "transform 0.1s ease-out",
+            }}
+          />
+        )}
       </button>
     </div>
   );
@@ -2279,7 +2403,16 @@ function ExportCenter({ data, addLog, playUISound, colors }) {
             paddingBottom: "15px",
           }}
         >
-          <h2 style={{ margin: "0 0 10px 0", fontSize: "28px" }}>DAVIS CAFE</h2>
+          {/* PERBAIKAN: Penegasan Text Color Main dan Muted agar aman di Dark/Light Mode */}
+          <h2
+            style={{
+              margin: "0 0 10px 0",
+              fontSize: "28px",
+              color: "var(--text-main)",
+            }}
+          >
+            DAVIS CAFE
+          </h2>
           <h3
             style={{
               margin: "0",
@@ -2352,7 +2485,7 @@ function ExportCenter({ data, addLog, playUISound, colors }) {
                 marginBottom: "5px",
               }}
             >
-              Waste (Rugi)
+              Terbuang (Waste)
             </div>
             <div
               style={{ fontSize: "24px", fontWeight: "900", color: colors.red }}
@@ -2451,7 +2584,7 @@ function ExportCenter({ data, addLog, playUISound, colors }) {
               marginTop: 0,
             }}
           >
-            Ekspor Excel
+            Unduh Excel
           </h2>
           <button
             onClick={exportToExcel}
@@ -2605,7 +2738,7 @@ function InteractiveNeonBar({
       />
       <mesh
         ref={meshRef}
-        scale={[1, 0.01, 1]} // OPTIMASI SCALE
+        scale={[1, 0.01, 1]}
         onPointerOver={(e) => {
           e.stopPropagation();
           setHover(true);
@@ -2830,7 +2963,7 @@ function Advanced3DBarView({ data, isDarkMode, colors, sortOrder }) {
               marginBottom: "8px",
             }}
           >
-            {sortOrder === "desc" ? "TOP 5 PRODUCTS" : "BOTTOM 5 PRODUCTS"}
+            {sortOrder === "desc" ? "5 PRODUK TERATAS" : "5 PRODUK TERBAWAH"}
           </div>
           <div
             style={{
@@ -2858,7 +2991,7 @@ function Advanced3DBarView({ data, isDarkMode, colors, sortOrder }) {
                   fontWeight: "bold",
                 }}
               >
-                TOTAL SOLD
+                TOTAL TERJUAL
               </span>
               <span style={{ fontSize: "16px", fontWeight: "bold" }}>
                 {totalTopSold}
@@ -2902,7 +3035,7 @@ function Advanced3DBarView({ data, isDarkMode, colors, sortOrder }) {
               textAlign: "center",
             }}
           >
-            Hover over bars for details
+            Arahkan kursor untuk melihat detail
           </div>
         </div>
         <div
@@ -2952,7 +3085,6 @@ function Advanced3DBarView({ data, isDarkMode, colors, sortOrder }) {
           ))}
         </div>
 
-        {/* OPTIMASI: Set DPR ke 1.5 max agar performa ringan */}
         <Canvas camera={{ position: [8, 6, 14], fov: 45 }} dpr={[1, 1.5]}>
           <color attach="background" args={[bgCanvas]} />
 
@@ -2975,7 +3107,6 @@ function Advanced3DBarView({ data, isDarkMode, colors, sortOrder }) {
               <gridHelper args={[20, 20, gridColor, gridColor]} />
               {topData.map((item, index) => (
                 <InteractiveNeonBar
-                  /* OPTIMASI: Gunakan kombinasi nama, revenue, dan index sebagai key */
                   key={`bar-${item.name}-${item.revenue}-${index}`}
                   item={item}
                   index={index}
@@ -2987,7 +3118,6 @@ function Advanced3DBarView({ data, isDarkMode, colors, sortOrder }) {
               ))}
             </group>
 
-            {/* OPTIMASI: Resolusi shadow 128 dan frames 1 */}
             <ContactShadows
               position={[0, -2, 0]}
               opacity={isDarkMode ? 0.4 : 0.2}
@@ -3097,7 +3227,7 @@ function InteractivePieSlice({ slice, isDarkMode, setTooltip }) {
       />
       <mesh
         ref={meshRef}
-        scale={[0.01, 0.01, 0.01]} // OPTIMASI SCALE
+        scale={[0.01, 0.01, 0.01]}
         rotation={[-Math.PI / 2, 0, 0]}
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -3338,7 +3468,7 @@ function Advanced3DPieView({ data, isDarkMode, colors, sortOrder }) {
               marginBottom: "8px",
             }}
           >
-            CATEGORY REVENUE
+            PENDAPATAN KATEGORI
           </div>
           <div
             style={{
@@ -3366,7 +3496,7 @@ function Advanced3DPieView({ data, isDarkMode, colors, sortOrder }) {
                   fontWeight: "bold",
                 }}
               >
-                TOTAL SOLD
+                TOTAL TERJUAL
               </span>
               <span style={{ fontSize: "16px", fontWeight: "bold" }}>
                 {displayTotalSold}
@@ -3410,7 +3540,7 @@ function Advanced3DPieView({ data, isDarkMode, colors, sortOrder }) {
               textAlign: "center",
             }}
           >
-            Hover over slices for details
+            Arahkan kursor untuk melihat detail
           </div>
         </div>
         <div
@@ -3460,7 +3590,6 @@ function Advanced3DPieView({ data, isDarkMode, colors, sortOrder }) {
           ))}
         </div>
 
-        {/* OPTIMASI: Set DPR ke 1.5 max agar performa ringan */}
         <Canvas camera={{ position: [0, 8, 12], fov: 45 }} dpr={[1, 1.5]}>
           <color attach="background" args={[bgCanvas]} />
 
@@ -3492,7 +3621,6 @@ function Advanced3DPieView({ data, isDarkMode, colors, sortOrder }) {
             <group position={[0, -1, 0]}>
               {slices.map((slice, index) => (
                 <InteractivePieSlice
-                  /* OPTIMASI: Gunakan kombinasi nama, revenue, dan angle sebagai key */
                   key={`pie-${slice.name}-${slice.revenue}-${slice.startAngle}`}
                   slice={slice}
                   isDarkMode={isDarkMode}
@@ -3501,7 +3629,6 @@ function Advanced3DPieView({ data, isDarkMode, colors, sortOrder }) {
               ))}
             </group>
 
-            {/* OPTIMASI: Resolusi shadow 128 dan frames 1 */}
             <ContactShadows
               position={[0, -1.5, 0]}
               opacity={isDarkMode ? 0.4 : 0.2}
