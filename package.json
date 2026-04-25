@@ -21,6 +21,7 @@
     "react-dom": "^19.2.4",
     "recharts": "^3.8.1",
     "three": "^0.184.0",
+    "webgl-fluid": "^0.3.9",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

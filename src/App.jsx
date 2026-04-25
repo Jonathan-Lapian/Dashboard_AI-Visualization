@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  Suspense,
+  useTransition,
+} from "react";
 import {
   BarChart,
   Bar,
@@ -23,12 +30,22 @@ import "./App.css";
 // Import Three.js Components
 import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Text, ContactShadows, Html } from "@react-three/drei";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  OrbitControls,
+  Text,
+  ContactShadows,
+  Html,
+  Environment,
+  Preload, // OPTIMASI: Preload untuk mencegah blank screen
+  Loader, // OPTIMASI: Loading screen bawaan Drei
+} from "@react-three/drei";
 
-// Masukkan API Key Anda di sini (Hanya untuk testing lokal)
-const genAI = new GoogleGenerativeAI("-");
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// Import Google Gemini AI
+import { GoogleGenerativeAI } from "@google/generative-ai";
+// ---> MASUKKAN API KEY PRIBADI ANDA DI SINI <---
+const genAI = new GoogleGenerativeAI("API_KEY_ANDA");
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
 // ==============================================================================
 // 1. KONFIGURASI FIREBASE REALTIME DATABASE
 // ==============================================================================
@@ -224,12 +241,26 @@ const playUISound = (type) => {
       );
       osc.start();
       osc.stop(audioCtx.currentTime + 0.1);
+    } else if (type === "alert") {
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(
+        200,
+        audioCtx.currentTime + 0.2,
+      );
+      gainNode.gain.setValueAtTime(0.02, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.001,
+        audioCtx.currentTime + 0.2,
+      );
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.2);
     }
   } catch (error) {}
 };
 
 // ==============================================================================
-// 4. KOMPONEN MASKOT INTERAKTIF (STATE MACHINE)
+// 4. KOMPONEN MASKOT INTERAKTIF
 // ==============================================================================
 function InteractiveMascot({ isPasswordFocused, isDarkMode }) {
   const [mascotState, setMascotState] = useState("idle");
@@ -243,7 +274,6 @@ function InteractiveMascot({ isPasswordFocused, isDarkMode }) {
 
   useEffect(() => {
     if (mascotState === "sleep") return;
-
     if (isDarkMode) {
       setMascotState("tired");
       const timer = setTimeout(() => {
@@ -324,80 +354,44 @@ function InteractiveMascot({ isPasswordFocused, isDarkMode }) {
     }, 3000);
   };
 
-  const getBodyImage = () => {
-    switch (mascotState) {
-      case "peeking":
-        return "/mascot-peeking.png";
-      case "angry1":
-        return "/mascot-angry1.png";
-      case "angry2":
-        return "/mascot-angry2.png";
-      case "tired":
-        return "/mascot-tired.png";
-      case "sleep":
-        return "/mascot-sleep.png";
-      default:
-        return "/mascot-body.png";
-    }
-  };
-
-  // ... (Bagian useEffect dan logika handlePoke biarkan persis seperti sebelumnya) ...
-
   return (
     <div
       className="mascot-interactive-container"
       ref={containerRef}
       onClick={handlePoke}
     >
-      {/* Semua gambar diload bertumpuk sejak awal (Pre-loaded). 
-         Class 'active' akan mentrigger CSS transition opacity yang membuatnya muncul secara mulus.
-      */}
-
-      {/* Badan Idle / Normal (Juga dipakai untuk state 'annoyed' / cemberut) */}
       <img
         src="/mascot-body.png"
         alt="Idle"
         className={`mascot-layer ${mascotState === "idle" || mascotState === "annoyed" ? "active" : ""}`}
       />
-
-      {/* State: Peeking (Mengintip) */}
       <img
         src="/mascot-peeking.png"
         alt="Peeking"
         className={`mascot-layer ${mascotState === "peeking" ? "active" : ""}`}
       />
-
-      {/* State: Marah Ringan (Gunakan key agar getarannya bisa di-restart) */}
       <img
         key={`a1-${shakeKey}`}
         src="/mascot-angry1.png"
         alt="Angry 1"
         className={`mascot-layer ${mascotState === "angry1" ? "active mascot-shake-active" : ""}`}
       />
-
-      {/* State: Marah Puncak */}
       <img
         key={`a2-${shakeKey}`}
         src="/mascot-angry2.png"
         alt="Angry 2"
         className={`mascot-layer ${mascotState === "angry2" ? "active mascot-shake-active" : ""}`}
       />
-
-      {/* State: Lelah */}
       <img
         src="/mascot-tired.png"
         alt="Tired"
         className={`mascot-layer ${mascotState === "tired" ? "active" : ""}`}
       />
-
-      {/* State: Tidur Pulas */}
       <img
         src="/mascot-sleep.png"
         alt="Sleep"
         className={`mascot-layer ${mascotState === "sleep" ? "active" : ""}`}
       />
-
-      {/* Layer Mata (Hanya terlihat saat idle atau annoyed) */}
       <img
         src="/mascot-eyes.png"
         alt="Eyes"
@@ -417,11 +411,13 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [firebaseError, setFirebaseError] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
-
   const [isDarkMode, setIsDarkMode] = useState(false);
-
-  // INI ADALAH STATE YANG MEMBUAT HALAMAN LOGIN ANDA CRASH SEBELUMNYA KARENA HILANG
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(window.innerWidth > 768);
+
+  // OPTIMASI 3: Transisi React 18 untuk navigasi tab yang lebih halus
+  const [isPending, startTransition] = useTransition();
 
   const themeColors = isDarkMode ? darkColors : lightColors;
 
@@ -431,6 +427,7 @@ export default function App() {
   const [endDate, setEndDate] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [activeQuickFilter, setActiveQuickFilter] = useState("ALL");
+  const [sortOrder, setSortOrder] = useState("desc");
 
   const [logs, setLogs] = useState([
     {
@@ -708,6 +705,12 @@ export default function App() {
     </div>
   );
 
+  const switchTab = (tabName) => {
+    startTransition(() => {
+      setActiveTab(tabName);
+    });
+  };
+
   if (firebaseError)
     return (
       <div
@@ -856,85 +859,241 @@ export default function App() {
   }
 
   const FilterUI = (
-    <div className="modern-control-panel animate-fade-in">
-      <div className="control-row">
-        <div className="control-group">
-          <span className="control-label">Periode Data:</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => {
-              playUISound("click");
-              setStartDate(e.target.value);
-              setActiveQuickFilter(null);
+    <div
+      className={`modern-control-panel animate-fade-in ${isFilterOpen ? "is-open" : "is-closed"}`}
+    >
+      <div
+        className="filter-toggle-header"
+        onClick={() => {
+          playUISound("click");
+          setIsFilterOpen(!isFilterOpen);
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+          </svg>
+          <span
+            style={{
+              fontSize: "13px",
+              fontWeight: "800",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
             }}
-            className="date-input-modern"
-          />
-          <span style={{ color: "var(--text-muted)", fontWeight: "bold" }}>
-            —
+          >
+            Filter Data
           </span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => {
-              playUISound("click");
-              setEndDate(e.target.value);
-              setActiveQuickFilter(null);
-            }}
-            className="date-input-modern"
-          />
         </div>
-        <div className="control-group">
-          {["W1", "W2", "W3", "W4", "ALL"].map((t) => {
-            const isActive = activeQuickFilter === t;
-            return (
-              <button
-                key={t}
-                onMouseEnter={() => playUISound("hover")}
-                onClick={() => applyQuickFilter(t)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "20px",
-                  border: `1px solid ${isActive ? "var(--text-main)" : "var(--primary)"}`,
-                  background: isActive ? "var(--text-main)" : "transparent",
-                  color: isActive ? "var(--bg-base)" : "var(--primary)",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                  boxShadow: isActive
-                    ? "0 4px 10px var(--shadow-color)"
-                    : "none",
-                }}
-              >
-                {t === "ALL" ? "Semua Data" : `Minggu ${t[1]}`}
-              </button>
-            );
-          })}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {!isFilterOpen && (
+            <span
+              className="filter-hint"
+              style={{
+                fontSize: "10px",
+                color: "var(--text-muted)",
+                fontWeight: "600",
+              }}
+            >
+              Ketuk untuk ubah
+            </span>
+          )}
+          <span
+            style={{
+              transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              transform: isFilterOpen ? "rotate(180deg)" : "rotate(0deg)",
+              fontSize: "12px",
+              color: "var(--primary)",
+            }}
+          >
+            ▼
+          </span>
         </div>
       </div>
-      <div className="control-row divider">
-        <div className="control-group" style={{ alignItems: "flex-start" }}>
-          <span className="control-label" style={{ marginTop: "10px" }}>
-            Kategori:
-          </span>
-          <div className="category-chips-wrapper">
-            {uniqueCategories.map((c) => {
-              const isActive = categoryFilter === c;
-              return (
+
+      <div className="filter-body-wrapper">
+        <div className="filter-body-content">
+          <div className="control-row">
+            <div className="control-group mobile-date-group">
+              <span className="control-label">Periode Data:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  playUISound("click");
+                  setStartDate(e.target.value);
+                  setActiveQuickFilter(null);
+                }}
+                className="date-input-modern"
+              />
+              <span
+                className="date-separator"
+                style={{ color: "var(--text-muted)", fontWeight: "bold" }}
+              >
+                —
+              </span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  playUISound("click");
+                  setEndDate(e.target.value);
+                  setActiveQuickFilter(null);
+                }}
+                className="date-input-modern"
+              />
+            </div>
+            <div className="control-group quick-filter-wrapper">
+              {["W1", "W2", "W3", "W4", "ALL"].map((t) => {
+                const isActive = activeQuickFilter === t;
+                return (
+                  <button
+                    key={t}
+                    onMouseEnter={() => playUISound("hover")}
+                    onClick={() => applyQuickFilter(t)}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "20px",
+                      border: `1px solid ${isActive ? "var(--text-main)" : "var(--primary)"}`,
+                      background: isActive ? "var(--text-main)" : "transparent",
+                      color: isActive ? "var(--bg-base)" : "var(--primary)",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: isActive
+                        ? "0 4px 10px var(--shadow-color)"
+                        : "none",
+                    }}
+                  >
+                    {t === "ALL" ? "Semua Data" : `Minggu ${t[1]}`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="control-row" style={{ marginTop: "15px" }}>
+            <div
+              className="control-group"
+              style={{ alignItems: "flex-start", width: "100%" }}
+            >
+              <span
+                className="control-label"
+                style={{ marginTop: "8px", minWidth: "75px" }}
+              >
+                Kategori:
+              </span>
+              <div className="category-chips-wrapper">
+                {uniqueCategories.map((c) => {
+                  const isActive = categoryFilter === c;
+                  return (
+                    <button
+                      key={c}
+                      className={`category-chip ${isActive ? "active" : ""}`}
+                      onMouseEnter={() => playUISound("hover")}
+                      onClick={() => {
+                        playUISound("click");
+                        setCategoryFilter(c);
+                      }}
+                    >
+                      {c === "ALL" ? "Semua Kategori" : c}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="control-row"
+            style={{
+              marginTop: "15px",
+              paddingTop: "15px",
+              borderTop: "1px dashed var(--border-glass)",
+            }}
+          >
+            <div
+              className="control-group"
+              style={{ alignItems: "center", width: "100%" }}
+            >
+              <span className="control-label" style={{ minWidth: "75px" }}>
+                Performa:
+              </span>
+              <div
+                style={{
+                  display: "flex",
+                  background: "var(--input-bg)",
+                  borderRadius: "30px",
+                  border: "1px solid var(--border-solid)",
+                  padding: "4px",
+                  gap: "4px",
+                }}
+              >
                 <button
-                  key={c}
-                  className={`category-chip ${isActive ? "active" : ""}`}
-                  onMouseEnter={() => playUISound("hover")}
                   onClick={() => {
                     playUISound("click");
-                    setCategoryFilter(c);
+                    setSortOrder("desc");
+                  }}
+                  style={{
+                    padding: "8px 20px",
+                    border: "none",
+                    borderRadius: "25px",
+                    background:
+                      sortOrder === "desc" ? "var(--primary)" : "transparent",
+                    color:
+                      sortOrder === "desc"
+                        ? "var(--bg-base)"
+                        : "var(--text-muted)",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    transition: "all 0.3s ease",
+                    boxShadow:
+                      sortOrder === "desc"
+                        ? "0 4px 10px rgba(0,0,0,0.2)"
+                        : "none",
                   }}
                 >
-                  {c === "ALL" ? "Semua Kategori" : c}
+                  Top 5
                 </button>
-              );
-            })}
+                <button
+                  onClick={() => {
+                    playUISound("click");
+                    setSortOrder("asc");
+                  }}
+                  style={{
+                    padding: "8px 20px",
+                    border: "none",
+                    borderRadius: "25px",
+                    background:
+                      sortOrder === "asc" ? "var(--primary)" : "transparent",
+                    color:
+                      sortOrder === "asc"
+                        ? "var(--bg-base)"
+                        : "var(--text-muted)",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    transition: "all 0.3s ease",
+                    boxShadow:
+                      sortOrder === "asc"
+                        ? "0 4px 10px rgba(0,0,0,0.2)"
+                        : "none",
+                  }}
+                >
+                  Bottom 5
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -954,12 +1113,23 @@ export default function App() {
         <div className="coffee-swirl"></div>
       </div>
       <div className="main-layout relative-z">
-        <aside className="sidebar">
+        <div
+          className={`sidebar-overlay ${isSidebarOpen ? "active" : ""}`}
+          onClick={() => setIsSidebarOpen(false)}
+        ></div>
+
+        <aside className={`sidebar ${isSidebarOpen ? "open" : ""}`}>
           <div className="sidebar-logo">
             <h2>
               DAVIS<span style={{ color: "var(--primary)" }}>CAFE</span>
             </h2>
             <div className="status-dot"></div>
+            <button
+              className="mobile-close-btn"
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              ✕
+            </button>
           </div>
           <div className="user-profile-card">
             <div className="user-avatar">{role === "admin" ? "AD" : "VW"}</div>
@@ -987,7 +1157,8 @@ export default function App() {
               className={`nav-item ${activeTab === "overview" ? "active" : ""}`}
               onClick={() => {
                 playUISound("click");
-                setActiveTab("overview");
+                switchTab("overview");
+                setIsSidebarOpen(false);
               }}
             >
               <Icons.Dashboard /> Dasbor Analitik
@@ -997,7 +1168,8 @@ export default function App() {
               className={`nav-item ${activeTab === "table" ? "active" : ""}`}
               onClick={() => {
                 playUISound("click");
-                setActiveTab("table");
+                switchTab("table");
+                setIsSidebarOpen(false);
               }}
             >
               <Icons.Table /> Tabel Transaksi
@@ -1010,7 +1182,8 @@ export default function App() {
               className={`nav-item ${activeTab === "products" ? "active" : ""}`}
               onClick={() => {
                 playUISound("click");
-                setActiveTab("products");
+                switchTab("products");
+                setIsSidebarOpen(false);
               }}
             >
               <Icons.Box /> Master Produk
@@ -1020,7 +1193,8 @@ export default function App() {
               className={`nav-item ${activeTab === "export" ? "active" : ""}`}
               onClick={() => {
                 playUISound("click");
-                setActiveTab("export");
+                switchTab("export");
+                setIsSidebarOpen(false);
               }}
             >
               <Icons.File /> Cetak Laporan
@@ -1030,7 +1204,8 @@ export default function App() {
               className={`nav-item ${activeTab === "history" ? "active" : ""}`}
               onClick={() => {
                 playUISound("click");
-                setActiveTab("history");
+                switchTab("history");
+                setIsSidebarOpen(false);
               }}
             >
               <Icons.History /> Riwayat Sistem
@@ -1063,6 +1238,31 @@ export default function App() {
         </aside>
 
         <main className="content-area">
+          <div className="mobile-menu-header">
+            <button
+              className="hamburger-btn"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            <h2 className="mobile-logo-text">
+              DAVIS<span style={{ color: "var(--primary)" }}>CAFE</span>
+            </h2>
+          </div>
+
           {showHeaderAndFilter && (
             <div
               className="header-section"
@@ -1078,8 +1278,8 @@ export default function App() {
                 <h1 className="main-title">
                   {activeTab === "overview" && "RINGKASAN PERFORMA PENJUALAN"}
                   {activeTab === "table" && "DATA TRANSAKSI MENTAH"}
-                  {activeTab === "3d-bar" && "STUDIO ANALITIK: TOP PRODUK"}
-                  {activeTab === "3d-pie" && "STUDIO ANALITIK: ENERGY MIX"}
+                  {activeTab === "3d-bar" && "STUDIO ANALITIK: PRODUK"}
+                  {activeTab === "3d-pie" && "STUDIO ANALITIK: KATEGORI"}
                 </h1>
                 {activeTab.startsWith("3d") && (
                   <span
@@ -1095,7 +1295,7 @@ export default function App() {
                   className="page-btn"
                   onClick={() => {
                     playUISound("click");
-                    setActiveTab("overview");
+                    switchTab("overview");
                   }}
                   style={{
                     padding: "10px 20px",
@@ -1111,11 +1311,13 @@ export default function App() {
 
           {showHeaderAndFilter && FilterUI}
 
+          {/* RENDER KONTEN TAB */}
           {activeTab === "overview" && (
             <DashboardOverview
               data={filteredData}
               colors={themeColors}
-              setTab={setActiveTab}
+              setTab={switchTab}
+              sortOrder={sortOrder}
             />
           )}
           {activeTab === "table" && (
@@ -1144,19 +1346,46 @@ export default function App() {
             />
           )}
 
+          {/* SUSPENSE UNTUK 3D STUDIO AGAR TIDAK BLANK SCREEN */}
           {activeTab === "3d-bar" && (
-            <Advanced3DBarView
-              data={filteredData}
-              isDarkMode={isDarkMode}
-              colors={themeColors}
-            />
+            <div
+              style={{ position: "relative", width: "100%", height: "65vh" }}
+            >
+              <Suspense fallback={null}>
+                <Advanced3DBarView
+                  data={filteredData}
+                  isDarkMode={isDarkMode}
+                  colors={themeColors}
+                  sortOrder={sortOrder}
+                />
+              </Suspense>
+              {/* Tambahkan Loader Drei di Sini */}
+              <Loader
+                dataInterpolation={(p) =>
+                  `Memuat Studio 3D... ${p.toFixed(0)}%`
+                }
+              />
+            </div>
           )}
           {activeTab === "3d-pie" && (
-            <Advanced3DPieView
-              data={filteredData}
-              isDarkMode={isDarkMode}
-              colors={themeColors}
-            />
+            <div
+              style={{ position: "relative", width: "100%", height: "65vh" }}
+            >
+              <Suspense fallback={null}>
+                <Advanced3DPieView
+                  data={filteredData}
+                  isDarkMode={isDarkMode}
+                  colors={themeColors}
+                  sortOrder={sortOrder}
+                />
+              </Suspense>
+              {/* Tambahkan Loader Drei di Sini */}
+              <Loader
+                dataInterpolation={(p) =>
+                  `Memuat Studio 3D... ${p.toFixed(0)}%`
+                }
+              />
+            </div>
           )}
         </main>
       </div>
@@ -1169,7 +1398,6 @@ export default function App() {
           playUISound("click");
           setIsChatOpen(!isChatOpen);
         }}
-        colors={themeColors}
         activeTab={activeTab}
         categoryFilter={categoryFilter}
         startDate={startDate}
@@ -1182,7 +1410,7 @@ export default function App() {
 // ==============================================================================
 // 5. VIEW COMPONENTS (DASHBOARD 2D & TABLES)
 // ==============================================================================
-function DashboardOverview({ data, colors, setTab }) {
+function DashboardOverview({ data, colors, setTab, sortOrder }) {
   const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
   const totalSold = data.reduce((sum, item) => sum + item.sold, 0);
   const totalWaste = data.reduce((sum, item) => sum + item.waste, 0);
@@ -1191,26 +1419,20 @@ function DashboardOverview({ data, colors, setTab }) {
   data.forEach((d) => {
     catSales[d.category] = (catSales[d.category] || 0) + d.revenue;
   });
-  const sortedCategories = Object.keys(catSales).sort(
-    (a, b) => catSales[b] - catSales[a],
-  );
-  const topCategory = sortedCategories[0] || "N/A";
 
-  let pieChartData = [];
-  if (sortedCategories.length > 5) {
-    const topCats = sortedCategories.slice(0, 4);
-    const otherCats = sortedCategories.slice(4);
-    topCats.forEach((cat) =>
-      pieChartData.push({ name: cat, value: catSales[cat] }),
-    );
-    const othersTotal = otherCats.reduce((sum, cat) => sum + catSales[cat], 0);
-    pieChartData.push({ name: "Lainnya", value: othersTotal });
-  } else {
-    pieChartData = sortedCategories.map((cat) => ({
-      name: cat,
-      value: catSales[cat],
-    }));
-  }
+  const sortedCategories = Object.keys(catSales)
+    .sort((a, b) =>
+      sortOrder === "desc"
+        ? catSales[b] - catSales[a]
+        : catSales[a] - catSales[b],
+    )
+    .slice(0, 5);
+
+  const topCategory = sortedCategories[0] || "N/A";
+  const pieChartData = sortedCategories.map((cat) => ({
+    name: cat,
+    value: catSales[cat],
+  }));
 
   const lineMap = {};
   data.forEach((d) => {
@@ -1222,18 +1444,22 @@ function DashboardOverview({ data, colors, setTab }) {
 
   const productMap = {};
   data.forEach((d) => {
-    if (!productMap[d.productName]) {
+    if (!productMap[d.productName])
       productMap[d.productName] = { revenue: 0, category: d.category };
-    }
     productMap[d.productName].revenue += d.revenue;
   });
+
   const barChartData = Object.keys(productMap)
     .map((name) => ({
       name: name.length > 20 ? name.substring(0, 20) + "..." : name,
       pendapatan: productMap[name].revenue,
       category: productMap[name].category,
     }))
-    .sort((a, b) => b.pendapatan - a.pendapatan)
+    .sort((a, b) =>
+      sortOrder === "desc"
+        ? b.pendapatan - a.pendapatan
+        : a.pendapatan - b.pendapatan,
+    )
     .slice(0, 5);
 
   const PIE_COLORS = [
@@ -1242,7 +1468,6 @@ function DashboardOverview({ data, colors, setTab }) {
     "#C8A98B",
     "#8B5A2B",
     "#A68A76",
-    "#DEB887",
   ];
 
   return (
@@ -1267,7 +1492,9 @@ function DashboardOverview({ data, colors, setTab }) {
           </span>
         </div>
         <div className="kpi-card" style={{ borderLeftColor: colors.secondary }}>
-          <span className="kpi-label">KATEGORI TERLARIS</span>
+          <span className="kpi-label">
+            {sortOrder === "desc" ? "KATEGORI TERLARIS" : "KATEGORI TERENDAH"}
+          </span>
           <span
             className="kpi-value"
             style={{ color: colors.secondary, fontSize: "18px" }}
@@ -1448,7 +1675,7 @@ function DashboardOverview({ data, colors, setTab }) {
             alignItems: "center",
           }}
         >
-          <h3 className="card-title">Top 5 Produk Tersukses</h3>
+          <h3 className="card-title">5 Produk Tersukses</h3>
           <button
             className="page-btn"
             onClick={() => setTab("3d-bar")}
@@ -1789,7 +2016,6 @@ function FloatingAIChatAssistant({
       if (!data || data.length === 0)
         return "Data saat ini kosong untuk filter yang dipilih.";
 
-      // 1. Kalkulasi Data
       const totalRev = data.reduce((sum, d) => sum + d.revenue, 0);
       const totalSold = data.reduce((sum, d) => sum + d.sold, 0);
       const totalWaste = data.reduce((sum, d) => sum + d.waste, 0);
@@ -1804,7 +2030,6 @@ function FloatingAIChatAssistant({
         .slice(0, 3)
         .join(", ");
 
-      // 2. Terjemahkan State Layar menjadi Bahasa Manusia untuk AI
       let tabName = "Dasbor";
       if (activeTab === "overview")
         tabName = "Ringkasan Dasbor (Grafik Garis & KPI)";
@@ -1817,7 +2042,6 @@ function FloatingAIChatAssistant({
       const filterTanggal =
         startDate && endDate ? `${startDate} sampai ${endDate}` : "Semua Waktu";
 
-      // 3. PROMPT ENGINEERING 2.0 (Lebih Cerdas & Humanis)
       const promptContext = `
         Kamu adalah Davis AI, asisten analis data yang interaktif, ramah, dan proaktif untuk Davis Cafe.
         Gunakan gaya bahasa Indonesia yang kasual-profesional (gunakan kata "Anda" dan "Saya").
@@ -1842,7 +2066,6 @@ function FloatingAIChatAssistant({
         4. Gunakan emoji secukupnya agar tidak kaku.
       `;
 
-      // 4. Panggil API
       const result = await model.generateContent(promptContext);
       return result.response.text();
     } catch (error) {
@@ -1854,7 +2077,6 @@ function FloatingAIChatAssistant({
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
-
     playUISound("click");
     const userMsg = input;
     setMessages((prev) => [...prev, { sender: "user", text: userMsg }]);
@@ -1897,7 +2119,6 @@ function FloatingAIChatAssistant({
                 >
                   {m.sender === "user" ? "Anda" : "Davis AI"}
                 </small>
-                {/* Parse format bold dari Gemini */}
                 {m.text.split("\n").map((line, idx) => (
                   <span key={idx}>
                     {line
@@ -1908,7 +2129,7 @@ function FloatingAIChatAssistant({
                         ) : (
                           part
                         ),
-                      )}
+                      )}{" "}
                     <br />
                   </span>
                 ))}
@@ -1955,6 +2176,7 @@ function FloatingAIChatAssistant({
           backgroundSize: "contain",
           backgroundRepeat: "no-repeat",
           border: "none",
+          backgroundPosition: "center center",
         }}
       >
         {isOpen ? "✕" : ""}
@@ -1962,6 +2184,7 @@ function FloatingAIChatAssistant({
     </div>
   );
 }
+
 function ProductManager({ rawProducts, colors }) {
   const productList = Object.keys(rawProducts || {}).map((k) => ({
     id: k,
@@ -2006,6 +2229,10 @@ function ProductManager({ rawProducts, colors }) {
 }
 
 function ExportCenter({ data, addLog, playUISound, colors }) {
+  const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
+  const totalSold = data.reduce((sum, item) => sum + item.sold, 0);
+  const totalWaste = data.reduce((sum, item) => sum + item.waste, 0);
+
   const exportToExcel = () => {
     playUISound("click");
     const wb = utils.book_new();
@@ -2023,19 +2250,162 @@ function ExportCenter({ data, addLog, playUISound, colors }) {
     writeFile(wb, "Laporan_Davis_Cafe.xlsx");
     addLog("EXPORT", "Ekspor Excel", "Pengguna mengunduh laporan.");
   };
+
   return (
-    <div className="dashboard-content animate-fade-in">
+    <div className="dashboard-content animate-fade-in print-container">
       <div
-        className="header-section"
+        className="header-section no-print"
         style={{ borderBottom: "none", paddingBottom: "0" }}
       >
         <h1 className="main-title">CETAK LAPORAN</h1>
       </div>
-      <div style={{ display: "flex", gap: "20px" }}>
+      <div
+        className="print-summary-box"
+        style={{
+          background: "var(--glass-bg)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid var(--border-glass)",
+          borderRadius: "16px",
+          padding: "30px",
+          marginBottom: "30px",
+          color: "var(--text-main)",
+        }}
+      >
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: "20px",
+            borderBottom: `2px solid ${colors.primary}`,
+            paddingBottom: "15px",
+          }}
+        >
+          <h2 style={{ margin: "0 0 10px 0", fontSize: "28px" }}>DAVIS CAFE</h2>
+          <h3
+            style={{
+              margin: "0",
+              color: "var(--text-muted)",
+              fontSize: "16px",
+            }}
+          >
+            Laporan Ringkasan Performa Penjualan
+          </h3>
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: "20px",
+            textAlign: "center",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                fontWeight: "bold",
+                textTransform: "uppercase",
+                marginBottom: "5px",
+              }}
+            >
+              Total Pendapatan
+            </div>
+            <div
+              style={{
+                fontSize: "24px",
+                fontWeight: "900",
+                color: colors.primary,
+              }}
+            >
+              {formatIDR(totalRevenue)}
+            </div>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                fontWeight: "bold",
+                textTransform: "uppercase",
+                marginBottom: "5px",
+              }}
+            >
+              Barang Terjual
+            </div>
+            <div
+              style={{
+                fontSize: "24px",
+                fontWeight: "900",
+                color: colors.green,
+              }}
+            >
+              {totalSold} Item
+            </div>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                fontWeight: "bold",
+                textTransform: "uppercase",
+                marginBottom: "5px",
+              }}
+            >
+              Waste (Rugi)
+            </div>
+            <div
+              style={{ fontSize: "24px", fontWeight: "900", color: colors.red }}
+            >
+              {totalWaste} Unit
+            </div>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                fontWeight: "bold",
+                textTransform: "uppercase",
+                marginBottom: "5px",
+              }}
+            >
+              Total Transaksi
+            </div>
+            <div
+              style={{
+                fontSize: "24px",
+                fontWeight: "900",
+                color: colors.blue,
+              }}
+            >
+              {data.length} Baris
+            </div>
+          </div>
+        </div>
+        <div
+          style={{
+            marginTop: "20px",
+            paddingTop: "15px",
+            borderTop: "1px dashed var(--border-solid)",
+            fontSize: "12px",
+            color: "var(--text-muted)",
+            textAlign: "center",
+          }}
+        >
+          *Laporan ini dicetak berdasarkan filter data yang aktif pada dasbor
+          utama.
+        </div>
+      </div>
+      <div
+        className="no-print"
+        style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}
+      >
         <div
           className="dashboard-card"
           style={{
             flex: 1,
+            minWidth: "200px",
             borderTop: `4px solid ${colors.primary}`,
             textAlign: "center",
           }}
@@ -2059,6 +2429,7 @@ function ExportCenter({ data, addLog, playUISound, colors }) {
               background: "transparent",
               border: `2px solid ${colors.primary}`,
               color: colors.primary,
+              width: "100%",
             }}
           >
             CETAK KE PDF
@@ -2068,6 +2439,7 @@ function ExportCenter({ data, addLog, playUISound, colors }) {
           className="dashboard-card"
           style={{
             flex: 1,
+            minWidth: "200px",
             borderTop: `4px solid ${colors.green}`,
             textAlign: "center",
           }}
@@ -2088,6 +2460,7 @@ function ExportCenter({ data, addLog, playUISound, colors }) {
               background: "transparent",
               border: `2px solid ${colors.green}`,
               color: colors.green,
+              width: "100%",
             }}
           >
             UNDUH EXCEL
@@ -2181,10 +2554,9 @@ function HistoryLog({ logs, playUISound, colors }) {
 }
 
 // ==============================================================================
-// 6. ADVANCED 3D VIEWS (STUDIO ANALITIK)
+// 6. ADVANCED 3D VIEWS (MENGGUNAKAN NATIVE MESH PHYSICAL MATERIAL)
 // ==============================================================================
 
-// --- 3D BAR CHART COMPONENTS ---
 function InteractiveNeonBar({
   item,
   index,
@@ -2195,45 +2567,45 @@ function InteractiveNeonBar({
 }) {
   const [hovered, setHover] = useState(false);
   const meshRef = useRef();
+  const lightRef = useRef();
 
   const targetHeight = Math.max((item.revenue / maxRevenue) * 6, 0.1);
   const targetXPos = (index - 2.5) * 2;
 
-  useEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.scale.y = 0.01;
-      meshRef.current.position.y = 0.01;
-    }
-  }, []);
-
   useFrame(() => {
     if (meshRef.current) {
-      const baseIntensity = isDarkMode ? 0.7 : 0.2;
-      const targetIntensity = hovered
-        ? isDarkMode
-          ? 2.5
-          : 0.8
-        : baseIntensity;
       const targetScaleY = targetHeight * (hovered ? 1.05 : 1);
-
       meshRef.current.scale.y = THREE.MathUtils.lerp(
         meshRef.current.scale.y,
         targetScaleY,
         0.1,
       );
       meshRef.current.position.y = meshRef.current.scale.y / 2;
-      meshRef.current.material.emissiveIntensity = THREE.MathUtils.lerp(
-        meshRef.current.material.emissiveIntensity,
-        targetIntensity,
-        0.15,
-      );
+
+      if (lightRef.current) {
+        lightRef.current.position.y = meshRef.current.position.y;
+        const baseIntensity = hovered ? 10 : 3;
+        lightRef.current.intensity = THREE.MathUtils.lerp(
+          lightRef.current.intensity,
+          baseIntensity,
+          0.1,
+        );
+      }
     }
   });
 
   return (
     <group position={[targetXPos, 0, 0]}>
+      <pointLight
+        ref={lightRef}
+        color={color}
+        intensity={3}
+        distance={6}
+        decay={2}
+      />
       <mesh
         ref={meshRef}
+        scale={[1, 0.01, 1]} // OPTIMASI SCALE
         onPointerOver={(e) => {
           e.stopPropagation();
           setHover(true);
@@ -2257,19 +2629,27 @@ function InteractiveNeonBar({
         }}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial
-          color={color}
+        <meshPhysicalMaterial
+          transmission={1}
+          transparent={true}
+          opacity={1}
+          roughness={0.3}
+          ior={1.5}
+          thickness={2}
+          color="#ffffff"
+          attenuationColor={color}
+          attenuationDistance={2}
+          clearcoat={1}
+          clearcoatRoughness={0.1}
           emissive={color}
-          emissiveIntensity={isDarkMode ? 0.7 : 0.2}
-          roughness={0.2}
-          metalness={0.8}
+          emissiveIntensity={isDarkMode ? 0.2 : 0.05}
         />
       </mesh>
     </group>
   );
 }
 
-function Advanced3DBarView({ data, isDarkMode, colors }) {
+function Advanced3DBarView({ data, isDarkMode, colors, sortOrder }) {
   const [tooltip, setTooltip] = useState({
     visible: false,
     x: 0,
@@ -2277,7 +2657,6 @@ function Advanced3DBarView({ data, isDarkMode, colors }) {
     item: null,
     color: "",
   });
-
   const productMap = {};
   data.forEach((d) => {
     if (!productMap[d.productName])
@@ -2294,31 +2673,23 @@ function Advanced3DBarView({ data, isDarkMode, colors }) {
 
   const topData = Object.keys(productMap)
     .map((name) => ({ name, ...productMap[name] }))
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 6);
+    .sort((a, b) =>
+      sortOrder === "desc" ? b.revenue - a.revenue : a.revenue - b.revenue,
+    )
+    .slice(0, 5);
   const maxRevenue = Math.max(...topData.map((d) => d.revenue), 1);
 
   const bgCanvas = isDarkMode ? "#0B0C10" : colors.bgLight;
   const gridColor = isDarkMode ? "#1F2833" : colors.border;
-
   const BAR_COLORS = isDarkMode
-    ? ["#4D4DFF", "#9D4DFF", "#FF4DF0", "#FF2A2A", "#FF8C00", "#4DFFD2"]
-    : [
-        colors.primary,
-        colors.secondary,
-        colors.green,
-        colors.blue,
-        "#C8A98B",
-        "#A68A76",
-      ];
-
+    ? ["#4D4DFF", "#9D4DFF", "#FF4DF0", "#FF2A2A", "#FF8C00"]
+    : [colors.primary, colors.secondary, colors.green, colors.blue, "#C8A98B"];
   const hudBg = isDarkMode
     ? "rgba(11, 12, 16, 0.85)"
     : "rgba(255, 255, 255, 0.85)";
   const hudBorder = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
   const hudText = isDarkMode ? "#ffffff" : colors.dark;
   const hudSubtitle = isDarkMode ? "#8a8a8a" : colors.secondary;
-
   const totalTopRevenue = topData.reduce((sum, item) => sum + item.revenue, 0);
   const totalTopSold = topData.reduce((sum, item) => sum + item.sold, 0);
   const totalTopWaste = topData.reduce((sum, item) => sum + item.waste, 0);
@@ -2419,7 +2790,6 @@ function Advanced3DBarView({ data, isDarkMode, colors }) {
           </div>
         </div>
       )}
-
       <div
         style={{
           flexGrow: 1,
@@ -2431,6 +2801,7 @@ function Advanced3DBarView({ data, isDarkMode, colors }) {
         }}
       >
         <div
+          className="studio-overlay-card"
           style={{
             position: "absolute",
             top: "20px",
@@ -2459,7 +2830,7 @@ function Advanced3DBarView({ data, isDarkMode, colors }) {
               marginBottom: "8px",
             }}
           >
-            Analytics Dashboard
+            {sortOrder === "desc" ? "TOP 5 PRODUCTS" : "BOTTOM 5 PRODUCTS"}
           </div>
           <div
             style={{
@@ -2534,8 +2905,8 @@ function Advanced3DBarView({ data, isDarkMode, colors }) {
             Hover over bars for details
           </div>
         </div>
-
         <div
+          className="studio-overlay-legend"
           style={{
             position: "absolute",
             bottom: "20px",
@@ -2581,29 +2952,53 @@ function Advanced3DBarView({ data, isDarkMode, colors }) {
           ))}
         </div>
 
-        <Canvas camera={{ position: [8, 6, 14], fov: 45 }}>
+        {/* OPTIMASI: Set DPR ke 1.5 max agar performa ringan */}
+        <Canvas camera={{ position: [8, 6, 14], fov: 45 }} dpr={[1, 1.5]}>
           <color attach="background" args={[bgCanvas]} />
-          <ambientLight intensity={isDarkMode ? 0.5 : 0.8} />
-          <pointLight
-            position={[10, 15, 10]}
-            intensity={isDarkMode ? 2 : 1.5}
-            color="#ffffff"
-          />
 
-          <group position={[0, -2, 0]}>
-            <gridHelper args={[20, 20, gridColor, gridColor]} />
-            {topData.map((item, index) => (
-              <InteractiveNeonBar
-                key={index}
-                item={item}
-                index={index}
-                maxRevenue={maxRevenue}
-                color={BAR_COLORS[index % BAR_COLORS.length]}
-                isDarkMode={isDarkMode}
-                setTooltip={setTooltip}
-              />
-            ))}
-          </group>
+          <Suspense fallback={null}>
+            <Environment preset={isDarkMode ? "night" : "city"} />
+            <ambientLight intensity={isDarkMode ? 0.8 : 1.2} />
+            <directionalLight
+              position={[10, 15, 10]}
+              intensity={isDarkMode ? 2.5 : 2}
+            />
+            <spotLight
+              position={[-10, 10, -10]}
+              angle={0.3}
+              penumbra={1}
+              intensity={2}
+              color="#ffffff"
+            />
+
+            <group position={[0, -2, 0]}>
+              <gridHelper args={[20, 20, gridColor, gridColor]} />
+              {topData.map((item, index) => (
+                <InteractiveNeonBar
+                  /* OPTIMASI: Gunakan kombinasi nama, revenue, dan index sebagai key */
+                  key={`bar-${item.name}-${item.revenue}-${index}`}
+                  item={item}
+                  index={index}
+                  maxRevenue={maxRevenue}
+                  color={BAR_COLORS[index % BAR_COLORS.length]}
+                  isDarkMode={isDarkMode}
+                  setTooltip={setTooltip}
+                />
+              ))}
+            </group>
+
+            {/* OPTIMASI: Resolusi shadow 128 dan frames 1 */}
+            <ContactShadows
+              position={[0, -2, 0]}
+              opacity={isDarkMode ? 0.4 : 0.2}
+              scale={20}
+              blur={2}
+              resolution={128}
+              frames={1}
+            />
+            <Preload all />
+          </Suspense>
+
           <OrbitControls
             makeDefault
             minPolarAngle={0}
@@ -2615,20 +3010,34 @@ function Advanced3DBarView({ data, isDarkMode, colors }) {
   );
 }
 
-// --- 3D PIE CHART COMPONENTS ---
 function InteractivePieSlice({ slice, isDarkMode, setTooltip }) {
   const [hovered, setHover] = useState(false);
   const meshRef = useRef();
+  const lightRef = useRef();
 
   const shape = useMemo(() => {
     const s = new THREE.Shape();
-    s.moveTo(0, 0);
+    const outerRadius = 4;
+    const innerRadius = 2.2;
     const segments = 32;
-    for (let j = 0; j <= segments; j++) {
+
+    s.moveTo(
+      Math.cos(slice.startAngle) * outerRadius,
+      Math.sin(slice.startAngle) * outerRadius,
+    );
+    for (let j = 1; j <= segments; j++) {
       const a = slice.startAngle + (j / segments) * slice.angleLength;
-      s.lineTo(Math.cos(a) * 4, Math.sin(a) * 4);
+      s.lineTo(Math.cos(a) * outerRadius, Math.sin(a) * outerRadius);
     }
-    s.lineTo(0, 0);
+    const endAngle = slice.startAngle + slice.angleLength;
+    s.lineTo(
+      Math.cos(endAngle) * innerRadius,
+      Math.sin(endAngle) * innerRadius,
+    );
+    for (let j = segments - 1; j >= 0; j--) {
+      const a = slice.startAngle + (j / segments) * slice.angleLength;
+      s.lineTo(Math.cos(a) * innerRadius, Math.sin(a) * innerRadius);
+    }
     return s;
   }, [slice.startAngle, slice.angleLength]);
 
@@ -2636,17 +3045,16 @@ function InteractivePieSlice({ slice, isDarkMode, setTooltip }) {
     () => ({
       depth: 1,
       bevelEnabled: true,
-      bevelThickness: 0.05,
-      bevelSize: 0.05,
-      bevelSegments: 3,
+      bevelThickness: 0.1,
+      bevelSize: 0.08,
+      bevelSegments: 4,
     }),
     [],
   );
   const targetDepth = 0.4 + (slice.revenue / slice.maxRev) * 2;
-
-  useEffect(() => {
-    if (meshRef.current) meshRef.current.scale.set(0.01, 0.01, 0.01);
-  }, [slice.startAngle, slice.angleLength]);
+  const midRadius = (2.2 + 4) / 2;
+  const lightX = Math.cos(slice.midAngle) * midRadius;
+  const lightZ = -Math.sin(slice.midAngle) * midRadius;
 
   useFrame(() => {
     if (meshRef.current) {
@@ -2655,29 +3063,41 @@ function InteractivePieSlice({ slice, isDarkMode, setTooltip }) {
       const targetX = Math.cos(slice.midAngle) * pushOut;
       const targetZ = -Math.sin(slice.midAngle) * pushOut;
       const targetY = hovered ? 0.8 : 0;
-
       meshRef.current.position.lerp(
         new THREE.Vector3(targetX, targetY, targetZ),
         0.1,
       );
-      const baseIntensity = isDarkMode ? 0.3 : 0.0;
-      const targetIntensity = hovered
-        ? isDarkMode
-          ? 1.5
-          : 0.4
-        : baseIntensity;
-      meshRef.current.material.emissiveIntensity = THREE.MathUtils.lerp(
-        meshRef.current.material.emissiveIntensity,
-        targetIntensity,
-        0.15,
-      );
+
+      if (lightRef.current) {
+        const lightTargetX = lightX + targetX;
+        const lightTargetZ = lightZ + targetZ;
+        const lightTargetY = targetDepth / 2 + targetY;
+        lightRef.current.position.lerp(
+          new THREE.Vector3(lightTargetX, lightTargetY, lightTargetZ),
+          0.1,
+        );
+        const baseIntensity = hovered ? 12 : 5;
+        lightRef.current.intensity = THREE.MathUtils.lerp(
+          lightRef.current.intensity,
+          baseIntensity,
+          0.1,
+        );
+      }
     }
   });
 
   return (
     <group>
+      <pointLight
+        ref={lightRef}
+        color={slice.color}
+        intensity={5}
+        distance={6}
+        decay={2}
+      />
       <mesh
         ref={meshRef}
+        scale={[0.01, 0.01, 0.01]} // OPTIMASI SCALE
         rotation={[-Math.PI / 2, 0, 0]}
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -2702,20 +3122,27 @@ function InteractivePieSlice({ slice, isDarkMode, setTooltip }) {
         }}
       >
         <extrudeGeometry args={[shape, extrudeSettings]} />
-        <meshStandardMaterial
-          color={slice.color}
+        <meshPhysicalMaterial
+          transmission={1}
+          transparent={true}
+          opacity={1}
+          roughness={0.3}
+          ior={1.5}
+          thickness={2}
+          color="#ffffff"
+          attenuationColor={slice.color}
+          attenuationDistance={2}
+          clearcoat={1}
+          clearcoatRoughness={0.1}
           emissive={slice.color}
-          roughness={0.35}
-          metalness={0.15}
-          transparent
-          opacity={0.95}
+          emissiveIntensity={isDarkMode ? 0.3 : 0.05}
         />
       </mesh>
     </group>
   );
 }
 
-function Advanced3DPieView({ data, isDarkMode, colors }) {
+function Advanced3DPieView({ data, isDarkMode, colors, sortOrder }) {
   const [tooltip, setTooltip] = useState({
     visible: false,
     x: 0,
@@ -2723,10 +3150,7 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
     item: null,
     color: "",
   });
-
   const catSales = {};
-  let totalSold = 0;
-  let totalWaste = 0;
 
   data.forEach((d) => {
     if (!catSales[d.category])
@@ -2734,57 +3158,26 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
     catSales[d.category].revenue += d.revenue;
     catSales[d.category].sold += d.sold;
     catSales[d.category].waste += d.waste;
-    totalSold += d.sold;
-    totalWaste += d.waste;
   });
 
-  const sortedCats = Object.keys(catSales).sort(
-    (a, b) => catSales[b].revenue - catSales[a].revenue,
-  );
-  let pieData = [];
-
-  if (sortedCats.length > 5) {
-    const topCats = sortedCats.slice(0, 4);
-    const otherCats = sortedCats.slice(4);
-
-    topCats.forEach((cat) => pieData.push({ name: cat, ...catSales[cat] }));
-    const othersData = { revenue: 0, sold: 0, waste: 0 };
-    otherCats.forEach((cat) => {
-      othersData.revenue += catSales[cat].revenue;
-      othersData.sold += catSales[cat].sold;
-      othersData.waste += catSales[cat].waste;
-    });
-    pieData.push({ name: "Lainnya", ...othersData });
-  } else {
-    pieData = sortedCats.map((cat) => ({ name: cat, ...catSales[cat] }));
-  }
-
-  const totalRev = pieData.reduce((sum, d) => sum + d.revenue, 0);
+  const sortedCats = Object.keys(catSales)
+    .sort((a, b) =>
+      sortOrder === "desc"
+        ? catSales[b].revenue - catSales[a].revenue
+        : catSales[a].revenue - catSales[b].revenue,
+    )
+    .slice(0, 5);
+  const pieData = sortedCats.map((cat) => ({ name: cat, ...catSales[cat] }));
+  const displayTotalRev = pieData.reduce((sum, d) => sum + d.revenue, 0);
+  const displayTotalSold = pieData.reduce((sum, d) => sum + d.sold, 0);
+  const displayTotalWaste = pieData.reduce((sum, d) => sum + d.waste, 0);
   const maxRev = Math.max(...pieData.map((d) => d.revenue), 1);
 
   const bgCanvas = isDarkMode ? "#0B0C10" : colors.bgLight;
   const gridColor = isDarkMode ? "#1F2833" : colors.border;
-
   const PIE_COLORS = isDarkMode
-    ? [
-        "#4D4DFF",
-        "#9D4DFF",
-        "#FF4DF0",
-        "#FF2A2A",
-        "#FF8C00",
-        "#4DFFD2",
-        "#FFEAA7",
-      ]
-    : [
-        colors.primary,
-        colors.secondary,
-        colors.green,
-        colors.blue,
-        "#C8A98B",
-        "#A68A76",
-        "#DEB887",
-      ];
-
+    ? ["#4D4DFF", "#9D4DFF", "#FF4DF0", "#FF2A2A", "#FF8C00"]
+    : [colors.primary, colors.secondary, colors.green, colors.blue, "#C8A98B"];
   const hudBg = isDarkMode
     ? "rgba(11, 12, 16, 0.85)"
     : "rgba(255, 255, 255, 0.85)";
@@ -2794,7 +3187,7 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
 
   let startAngle = 0;
   const slices = pieData.map((d, i) => {
-    const angleLength = (d.revenue / totalRev) * Math.PI * 2;
+    const angleLength = (d.revenue / displayTotalRev) * Math.PI * 2;
     const sAngle = startAngle;
     startAngle += angleLength;
     return {
@@ -2802,7 +3195,7 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
       startAngle: sAngle,
       angleLength,
       midAngle: sAngle + angleLength / 2,
-      total: totalRev,
+      total: displayTotalRev,
       maxRev,
       color: PIE_COLORS[i % PIE_COLORS.length],
     };
@@ -2905,7 +3298,6 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
           </div>
         </div>
       )}
-
       <div
         style={{
           flexGrow: 1,
@@ -2917,6 +3309,7 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
         }}
       >
         <div
+          className="studio-overlay-card"
           style={{
             position: "absolute",
             top: "20px",
@@ -2945,7 +3338,7 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
               marginBottom: "8px",
             }}
           >
-            Category Revenue
+            CATEGORY REVENUE
           </div>
           <div
             style={{
@@ -2955,7 +3348,7 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
               margin: "0 0 15px 0",
             }}
           >
-            {formatIDR(totalRev)}
+            {formatIDR(displayTotalRev)}
           </div>
           <div
             style={{
@@ -2976,7 +3369,7 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
                 TOTAL SOLD
               </span>
               <span style={{ fontSize: "16px", fontWeight: "bold" }}>
-                {totalSold}
+                {displayTotalSold}
               </span>
             </div>
             <div
@@ -3003,7 +3396,7 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
                   color: isDarkMode ? "#FF4DF0" : colors.red,
                 }}
               >
-                {totalWaste}
+                {displayTotalWaste}
               </span>
             </div>
           </div>
@@ -3020,8 +3413,8 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
             Hover over slices for details
           </div>
         </div>
-
         <div
+          className="studio-overlay-legend"
           style={{
             position: "absolute",
             bottom: "20px",
@@ -3067,31 +3460,59 @@ function Advanced3DPieView({ data, isDarkMode, colors }) {
           ))}
         </div>
 
-        <Canvas camera={{ position: [0, 8, 12], fov: 45 }}>
+        {/* OPTIMASI: Set DPR ke 1.5 max agar performa ringan */}
+        <Canvas camera={{ position: [0, 8, 12], fov: 45 }} dpr={[1, 1.5]}>
           <color attach="background" args={[bgCanvas]} />
-          <ambientLight intensity={isDarkMode ? 0.6 : 0.8} />
-          <directionalLight
-            position={[5, 10, 5]}
-            intensity={isDarkMode ? 2 : 1.5}
-            castShadow
-          />
 
-          <group position={[0, -1, 0]}>
-            {slices.map((slice, index) => (
-              <InteractivePieSlice
-                key={index}
-                slice={slice}
-                isDarkMode={isDarkMode}
-                setTooltip={setTooltip}
-              />
-            ))}
-          </group>
-          <ContactShadows
-            position={[0, -1.5, 0]}
-            opacity={isDarkMode ? 0.4 : 0.2}
-            scale={15}
-            blur={2}
-          />
+          <Suspense fallback={null}>
+            <Environment preset={isDarkMode ? "night" : "city"} />
+            <ambientLight intensity={isDarkMode ? 0.8 : 1.2} />
+            <directionalLight
+              position={[10, 15, 10]}
+              intensity={isDarkMode ? 2.5 : 2}
+            />
+            <spotLight
+              position={[-10, 10, -10]}
+              angle={0.3}
+              penumbra={1}
+              intensity={2}
+              color="#ffffff"
+            />
+            <pointLight
+              position={[5, -2, -5]}
+              intensity={isDarkMode ? 3 : 1.5}
+              color={PIE_COLORS[0]}
+            />
+            <pointLight
+              position={[-5, -2, 5]}
+              intensity={isDarkMode ? 3 : 1.5}
+              color={PIE_COLORS[2]}
+            />
+
+            <group position={[0, -1, 0]}>
+              {slices.map((slice, index) => (
+                <InteractivePieSlice
+                  /* OPTIMASI: Gunakan kombinasi nama, revenue, dan angle sebagai key */
+                  key={`pie-${slice.name}-${slice.revenue}-${slice.startAngle}`}
+                  slice={slice}
+                  isDarkMode={isDarkMode}
+                  setTooltip={setTooltip}
+                />
+              ))}
+            </group>
+
+            {/* OPTIMASI: Resolusi shadow 128 dan frames 1 */}
+            <ContactShadows
+              position={[0, -1.5, 0]}
+              opacity={isDarkMode ? 0.4 : 0.2}
+              scale={15}
+              blur={2}
+              resolution={128}
+              frames={1}
+            />
+            <Preload all />
+          </Suspense>
+
           <OrbitControls
             enableZoom={true}
             minPolarAngle={0}

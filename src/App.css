@@ -90,14 +90,14 @@ body,
 .coffee-swirl {
   width: 600px;
   height: 600px;
+  border-radius: 50%;
+  filter: blur(40px);
   background: radial-gradient(
     circle,
     var(--cursor-glow-center) 0%,
     var(--cursor-glow-mid) 30%,
     rgba(192, 139, 92, 0) 70%
   );
-  border-radius: 50%;
-  filter: blur(40px);
   animation: ambient-glow 4s infinite alternate;
 }
 @keyframes ambient-glow {
@@ -131,13 +131,13 @@ body,
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(
     135deg,
     rgba(192, 139, 92, 0.1) 0%,
     rgba(192, 139, 92, 0) 100%
   );
-  position: relative;
-  overflow: hidden;
 }
 
 /* --- MASKOT INTERAKTIF LOGIN --- */
@@ -155,33 +155,36 @@ body,
   width: 100%;
   height: 100%;
   object-fit: contain;
-  opacity: 0; /* Default semua gambar tidak terlihat */
+  opacity: 0;
   visibility: hidden;
+  pointer-events: none;
   transition:
     opacity 0.25s ease-in-out,
-    visibility 0.25s ease-in-out; /* Efek memudar yang smooth */
-  pointer-events: none; /* Mencegah bentrok klik antar layer */
+    visibility 0.25s ease-in-out;
 }
-
-/* Class tambahan saat gambar aktif */
 .mascot-layer.active {
   opacity: 1;
   visibility: visible;
 }
-
 .mascot-eyes {
   z-index: 5;
-  /* Mata butuh transisi gerak (transform) dan transisi hilang/muncul (opacity) */
   transition:
     transform 0.1s ease-out,
     opacity 0.25s ease-in-out,
     visibility 0.25s ease-in-out;
 }
-/* Tambahkan ini di bagian paling bawah App.css */
 .mascot-shake-active {
   animation: mascotShake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
-
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
 @keyframes mascotShake {
   10%,
   90% {
@@ -201,6 +204,8 @@ body,
     transform: translate3d(6px, 0, 0);
   }
 }
+
+/* --- LOGIN FORM --- */
 .login-card {
   background: var(--glass-bg);
   backdrop-filter: blur(16px);
@@ -211,13 +216,6 @@ body,
   width: 100%;
   max-width: 420px;
   box-shadow: 0 10px 40px var(--shadow-color);
-}
-.login-header h2 {
-  margin: 0;
-  font-size: 26px;
-  color: var(--text-main);
-  letter-spacing: 2px;
-  font-weight: 800;
 }
 .login-form {
   margin-top: 20px;
@@ -274,9 +272,9 @@ body,
   width: calc(50% - 4px);
   background: var(--primary);
   border-radius: 25px;
-  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1;
   box-shadow: 0 2px 8px rgba(192, 139, 92, 0.4);
+  transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .theme-switch-wrapper.is-dark .theme-switch-thumb {
   left: 50%;
@@ -301,7 +299,7 @@ body,
   color: var(--bg-base);
 }
 
-/* --- SIDEBAR --- */
+/* --- SIDEBAR (DESKTOP) --- */
 .sidebar {
   width: 280px;
   height: 100%;
@@ -315,7 +313,6 @@ body,
   z-index: 20;
   box-shadow: 4px 0 20px var(--shadow-color);
 }
-
 .sidebar-logo {
   display: flex;
   align-items: center;
@@ -338,7 +335,6 @@ body,
   box-shadow: 0 0 8px var(--green, #388e3c);
   animation: pulse-dot 2s infinite;
 }
-
 .user-profile-card {
   margin: 0 20px 20px 20px;
   padding: 12px 15px;
@@ -378,7 +374,6 @@ body,
   text-transform: uppercase;
   margin-top: 2px;
 }
-
 .nav-section-title {
   font-size: 10px;
   color: var(--text-muted);
@@ -388,7 +383,6 @@ body,
   padding-left: 25px;
   text-transform: uppercase;
 }
-
 .nav-item {
   background: transparent;
   border: none;
@@ -426,7 +420,6 @@ body,
   border-left: 3px solid var(--primary);
   font-weight: 700;
 }
-
 .logout-btn-sidebar {
   display: flex;
   align-items: center;
@@ -455,7 +448,7 @@ body,
   color: var(--red, #d32f2f);
 }
 
-/* --- CONTENT AREA --- */
+/* --- CONTENT AREA & DASHBOARD ELEMENTS --- */
 .content-area {
   flex-grow: 1;
   height: 100%;
@@ -483,30 +476,65 @@ body,
   letter-spacing: 0.5px;
 }
 
-/* --- MODERN CONTROL PANEL --- */
+/* --- PANEL FILTER ACCORDION (SMOOTH CSS ANIMATION) --- */
 .modern-control-panel {
   background: var(--glass-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-radius: 16px;
+  border-radius: 12px;
   border: 1px solid var(--border-glass);
-  padding: 20px 25px;
-  margin-bottom: 30px;
+  margin-bottom: 25px;
   box-shadow: 0 8px 30px var(--shadow-color);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
 }
+.modern-control-panel.is-closed {
+  background: var(--input-bg);
+  box-shadow: 0 4px 15px var(--shadow-color);
+}
+.filter-toggle-header {
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  color: var(--text-main);
+  transition: background 0.2s ease;
+}
+.filter-toggle-header:hover {
+  background: rgba(192, 139, 92, 0.05);
+}
+.modern-control-panel.is-open .filter-toggle-header {
+  border-bottom: 1px dashed var(--border-solid);
+  background: rgba(192, 139, 92, 0.05);
+}
+
+/* Animasi Tinggi Konten Filter */
+.filter-body-wrapper {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease,
+    padding 0.3s ease;
+}
+.modern-control-panel.is-open .filter-body-wrapper {
+  max-height: 600px; /* Angka yang cukup besar untuk menampung isi di mobile */
+  opacity: 1;
+}
+.filter-body-content {
+  padding: 20px;
+}
+
 .control-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 20px;
-}
-.control-row.divider {
-  border-top: 1px dashed var(--border-solid);
-  padding-top: 20px;
 }
 .control-group {
   display: flex;
@@ -520,7 +548,6 @@ body,
   text-transform: uppercase;
   letter-spacing: 1px;
 }
-
 .category-chips-wrapper {
   display: flex;
   gap: 10px;
@@ -552,7 +579,6 @@ body,
   box-shadow: 0 4px 12px rgba(192, 139, 92, 0.3);
   transform: translateY(-2px);
 }
-
 .date-input-modern {
   padding: 10px 15px;
   border-radius: 12px;
@@ -569,7 +595,6 @@ body,
   box-shadow: 0 0 0 3px rgba(192, 139, 92, 0.15);
 }
 
-/* --- CARDS & KPI --- */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -600,7 +625,6 @@ body,
   font-weight: 800;
   color: var(--text-main);
 }
-
 .dashboard-card {
   background: var(--glass-bg);
   backdrop-filter: blur(12px);
@@ -632,8 +656,8 @@ body,
 /* --- TABLES & PAGINATION --- */
 .data-table {
   width: 100%;
-  border-collapse: collapse; /* Update to collapse for better fixed layout */
-  table-layout: fixed; /* MENGUNCI LEBAR TABEL AGAR STABIL */
+  border-collapse: collapse;
+  table-layout: fixed;
   font-size: 14px;
   text-align: left;
 }
@@ -642,7 +666,7 @@ body,
   padding: 15px;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis; /* Teks kepanjangan akan jadi ... */
+  text-overflow: ellipsis;
   border-bottom: 1px solid var(--border-solid);
 }
 .data-table th {
@@ -660,7 +684,6 @@ body,
 .data-table tbody tr:hover td {
   background-color: var(--table-hover);
 }
-
 .table-footer {
   display: flex;
   justify-content: space-between;
@@ -700,7 +723,6 @@ body,
   opacity: 0.4;
   cursor: not-allowed;
 }
-
 .action-btn {
   padding: 10px 18px;
   font-weight: bold;
@@ -710,6 +732,7 @@ body,
   border: none;
   font-size: 13px;
 }
+
 .animate-fade-in {
   animation: fadeIn 0.4s ease-out;
 }
@@ -768,13 +791,7 @@ body,
   padding: 0;
 }
 .chat-toggle-btn {
-  width: 75px;
-  height: 75px;
   border-radius: 50%;
-  background-color: var(--primary);
-  background-size: 140%;
-  background-position: center 20%;
-  border: 4px solid var(--glass-bg-heavy);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -785,14 +802,12 @@ body,
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
 }
 .chat-toggle-btn.is-open {
-  background-image: none !important;
   display: flex;
   justify-content: center;
   align-items: center;
   color: var(--bg-base);
   font-size: 24px;
 }
-
 .chat-messages {
   flex-grow: 1;
   padding: 20px;
@@ -868,4 +883,291 @@ body,
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ============================================================================== */
+/* 7. PRINTING STYLES (KHUSUS UNTUK CETAK PDF)                                    */
+/* ============================================================================== */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-container,
+  .print-container * {
+    visibility: visible;
+  }
+  .print-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .sidebar,
+  .floating-chat-container,
+  .cursor-tracker,
+  .mobile-menu-header {
+    display: none !important;
+  }
+  .print-summary-box {
+    border: 1px solid #000 !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    margin-top: 0 !important;
+  }
+  .print-summary-box * {
+    color: #000 !important;
+  }
+}
+
+/* ============================================================================== */
+/* 8. RESPONSIVE DESIGN (MOBILE & TABLET)                                         */
+/* ============================================================================== */
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 99;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.sidebar-overlay.active {
+  display: block;
+  opacity: 1;
+}
+.mobile-menu-header {
+  display: none;
+}
+.mobile-close-btn {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dashboard-content > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+  .mascot-interactive-container {
+    width: 400px;
+    height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-split-container {
+    flex-direction: column-reverse;
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+  .login-side-left,
+  .login-side-right {
+    flex: none;
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  .login-side-right {
+    height: 250px;
+  }
+  .mascot-interactive-container {
+    width: 100%;
+    max-width: 180px;
+    height: 180px;
+    margin: 0 auto;
+  }
+  .mascot-layer {
+    top: 0;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -300px;
+    height: 100vh;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+    box-shadow: none;
+  }
+  .sidebar.open {
+    left: 0;
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.6);
+  }
+  .mobile-close-btn {
+    display: block;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    font-size: 20px;
+    font-weight: bold;
+    margin-left: auto;
+    cursor: pointer;
+  }
+
+  /* HAMBURGER MENU */
+  .mobile-menu-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+  .hamburger-btn {
+    background: var(--input-bg);
+    border: 1px solid var(--border-solid);
+    color: var(--text-main);
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+  }
+  .mobile-logo-text {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--text-main);
+  }
+  .mobile-logo-text span {
+    color: var(--primary);
+  }
+
+  /* FILTER ACCORDION DI HP */
+  .content-area {
+    padding: 15px;
+  }
+  .header-section {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 10px;
+  }
+  .main-title {
+    font-size: 18px;
+  }
+
+  .modern-control-panel {
+    margin-bottom: 15px;
+  }
+  .filter-toggle-header {
+    padding: 12px 15px;
+  }
+
+  .control-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+  .control-group {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .mobile-date-group {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .date-input-modern {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .date-separator {
+    display: none;
+  }
+
+  .quick-filter-wrapper {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .quick-filter-wrapper button {
+    width: 100%;
+    padding: 8px 5px !important;
+    font-size: 11px !important;
+  }
+
+  /* KPI GRID 2x2 UNTUK TABLET KECIL */
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+  }
+
+  .studio-overlay-card {
+    width: calc(100% - 40px) !important;
+    padding: 15px !important;
+    transform: scale(0.85);
+    transform-origin: top left;
+  }
+  .studio-overlay-legend {
+    bottom: 10px !important;
+    padding: 10px !important;
+    justify-content: flex-start;
+    overflow-x: auto;
+    transform: scale(0.9);
+    transform-origin: bottom left;
+  }
+  .studio-overlay-legend::-webkit-scrollbar {
+    display: none;
+  }
+
+  .floating-chat-window {
+    width: calc(100vw - 40px);
+    right: 20px;
+    bottom: 85px;
+    height: 400px;
+  }
+  .chat-toggle-btn {
+    width: 55px !important;
+    height: 55px !important;
+  }
+}
+
+/* --- HP KECIL KHUSUS --- */
+@media (max-width: 480px) {
+  /* MENGUBAH KPI MENJADI GRID 2x2 YANG LEBIH COMPACT */
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+  .kpi-card {
+    padding: 12px;
+  }
+  .kpi-label {
+    font-size: 10px;
+  }
+  .kpi-value {
+    font-size: 16px;
+  }
+
+  .dashboard-card {
+    padding: 15px;
+  }
+  .category-chip {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+  .page-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+  div[style*="display: flex; gap: 20px;"] {
+    flex-direction: column;
+  }
+}
+/* --- FIX IKON KALENDER DI DARK MODE --- */
+[data-theme="dark"] .date-input-modern::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
 }
